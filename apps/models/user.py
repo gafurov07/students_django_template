@@ -1,9 +1,8 @@
 from django.contrib.auth.models import AbstractUser
-from django.db.models import TextChoices, CharField, ImageField, Model, DateField, IntegerField, EmailField, DateTimeField
+from django.db.models import TextChoices, CharField, ImageField, DateField, DateTimeField
 
 
-
-class Users(AbstractUser):
+class User(AbstractUser):
     class Type(TextChoices):
         ADMIN = 'admin', 'Admin'
         MODERATOR = 'moderator', 'Moderator'
@@ -19,7 +18,3 @@ class Users(AbstractUser):
     type = CharField(max_length=20, choices=Type.choices, default=Type.STUDENT)
     created_at = DateTimeField(auto_now_add=True, null=True, blank=True)
 
-
-class Subject(Model):
-    subject_id = IntegerField(primary_key=True)
-    name = CharField(max_length=25)

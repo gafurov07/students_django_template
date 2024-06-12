@@ -4,7 +4,12 @@ from django.views.generic import TemplateView
 from apps.views import UserView, CreateStudentView, DetailStudentView, UpdateStudentView, TeachersListView, \
     TeacherUpdateView, TeacherCreateView, TeacherDetailView, CustomLoginView, CustomRegisterView, LogoutView
 
+def sent_email(request):
+    email = request.GET.get('email')
+
+
 urlpatterns = [
+    # path('email/' )
     path('', TeachersListView.as_view(), name='home'),
     path('teachers/', TeachersListView.as_view(), name='teachers-list'),
     path('teacher-update/<int:pk>', TeacherUpdateView.as_view(), name='teacher-update'),

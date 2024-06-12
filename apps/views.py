@@ -4,18 +4,15 @@ from django.contrib.auth.views import LoginView
 from django.shortcuts import resolve_url, redirect
 from django.urls import reverse_lazy
 from django.views import View
-from django.views.generic import ListView, CreateView, DetailView, UpdateView, FormView
+from django.views.generic import ListView, CreateView, DetailView, UpdateView
 
 from apps.forms import CreateUserForm, CustomCreateUserForm
-from apps.models import Users
+from apps.models.user import User
+from apps.tasks import send_to_email
 
 
-class CustomLoginRequiredMixin(LoginRequiredMixin):
-    login_url = 'login-page'
-
-
-class UserView(CustomLoginRequiredMixin, ListView):
-    queryset = Users.objects.filter(type=Users.Type.STUDENT)
+class UserView(LoginRequiredMixin, ListView):
+    queryset = User.objects.filter(type=User.Type.STUDENT)
     context_object_name = 'students'
     template_name = 'apps/parts/students-list.html'
     ordering = '-id'
@@ -24,24 +21,24 @@ class UserView(CustomLoginRequiredMixin, ListView):
     def get(self, request, *args, **kwargs):
         queryset = super().get(request, *args, **kwargs)
         student_id = self.request.GET.get('pk')
-        Users.objects.filter(id=student_id).delete()
+        User.objects.filter(id=student_id).delete()
         return queryset
 
 
-class DetailStudentView(CustomLoginRequiredMixin, DetailView):
-    queryset = Users.objects.filter(type=Users.Type.STUDENT)
+class DetailStudentView(LoginRequiredMixin, DetailView):
+    queryset = User.objects.filter(type=User.Type.STUDENT)
     template_name = 'apps/parts/student-detail.html'
     context_object_name = 'student'
 
 
-class CreateStudentView(CustomLoginRequiredMixin, CreateView):
-    model = Users
+class CreateStudentView(LoginRequiredMixin, CreateView):
+    model = User
     template_name = 'apps/parts/add-student.html'
     form_class = CreateUserForm
     success_url = reverse_lazy('students-list')
 
     def form_valid(self, form):
-        # form.save(commit=False).type = Users.Type.STUDENT
+        # form.save(commit=False).type = User.Type.STUDENT
         post = form.save(commit=False)
         post.user = self.request.user
         post.save()
@@ -51,9 +48,9 @@ class CreateStudentView(CustomLoginRequiredMixin, CreateView):
         return super().form_invalid(form)
 
 
-class UpdateStudentView(CustomLoginRequiredMixin, UpdateView):
+class UpdateStudentView(LoginRequiredMixin, UpdateView):
     form_class = CreateUserForm
-    model = Users
+    model = User
     template_name = 'apps/parts/student-edit.html'
     context_object_name = 'student'
     success_url = reverse_lazy('students-list')
@@ -63,9 +60,9 @@ class UpdateStudentView(CustomLoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class TeachersListView(CustomLoginRequiredMixin, ListView):
+class TeachersListView(LoginRequiredMixin, ListView):
     template_name = 'apps/parts/teachers-list.html'
-    queryset = Users.objects.filter(type=Users.Type.TEACHER)
+    queryset = User.objects.filter(type=User.Type.TEACHER)
     context_object_name = 'teachers'
     ordering = '-id'
     paginate_by = 3
@@ -73,13 +70,13 @@ class TeachersListView(CustomLoginRequiredMixin, ListView):
     def get(self, request, *args, **kwargs):
         queryset = super().get(request, *args, **kwargs)
         teacher_id = self.request.GET.get('pk')
-        Users.objects.filter(pk=teacher_id).delete()
+        User.objects.filter(pk=teacher_id).delete()
         return queryset
 
 
-class TeacherUpdateView(CustomLoginRequiredMixin, UpdateView):
+class TeacherUpdateView(LoginRequiredMixin, UpdateView):
     form_class = CreateUserForm
-    model = Users
+    model = User
     template_name = 'apps/parts/teacher-edit.html'
     context_object_name = 'teacher'
     success_url = reverse_lazy('teachers-list')
@@ -89,22 +86,25 @@ class TeacherUpdateView(CustomLoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class TeacherCreateView(CustomLoginRequiredMixin, CreateView):
-    model = Users
+class TeacherCreateView(LoginRequiredMixin, CreateView):
+    model = User
     template_name = 'apps/parts/add-teacher.html'
     form_class = CreateUserForm
     success_url = reverse_lazy('teachers-list')
 
     def form_valid(self, form):
-        form.save(commit=False).type = Users.Type.TEACHER
+        form.save(commit=False).type = User.Type.TEACHER
         post = form.save(commit=False)
         post.user = self.request.user
         post.save()
         return super().form_valid(form)
 
+    def form_invalid(self, form):
+        return super().form_invalid(form)
 
-class TeacherDetailView(CustomLoginRequiredMixin, DetailView):
-    queryset = Users.objects.filter(type=Users.Type.TEACHER)
+
+class TeacherDetailView(LoginRequiredMixin, DetailView):
+    queryset = User.objects.filter(type=User.Type.TEACHER)
     template_name = 'apps/parts/teacher-detail.html'
     context_object_name = 'teacher'
 
@@ -113,19 +113,21 @@ class CustomLoginView(LoginView):
     template_name = 'apps/register/login.html'
 
     def get_success_url(self):
-        user: Users = self.request.user
-        if user.type == Users.Type.STUDENT:
+        user: User = self.request.user
+        if user.type == User.Type.STUDENT:
             return resolve_url('students-list')
         return resolve_url('home')
 
 
-class CustomRegisterView(FormView):
-    model = Users
+class CustomRegisterView(CreateView):
+    model = User
     template_name = 'apps/register/register.html'
     form_class = CustomCreateUserForm
     success_url = reverse_lazy('login-page')
 
     def form_valid(self, form):
+        email = form.data['email']
+        send_to_email.delay(email)
         form.save()
         return super().form_valid(form)
 
